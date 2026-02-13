@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+
 from database import init_db
 from llm_service import extract_booking
 from booking_service import save_booking, get_bookings
