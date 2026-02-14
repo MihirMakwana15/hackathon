@@ -38,21 +38,43 @@ async function startBot() {
         }
     })
 
-    sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0]
-    if (!msg.message) return
+    sock.ev.on("messages.upsert", async (m) => {
 
-    const text = msg.message.conversation || msg.message.extendedTextMessage?.text
-    const from = msg.key.remoteJid
+    if (m.type !== "notify") return;
 
-    if (!text) return
+    const msg = m.messages[0];
 
-    console.log("Received message:", text)
+    if (!msg.message) return;
+    if (msg.key.fromMe) return;
 
-    await sock.sendMessage(from, {
-        text: "Bot received: " + text
-    })
-})
+    const from = msg.key.remoteJid;
+
+    const text =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text;
+
+    if (!text) return;
+
+    console.log("User:", text);
+
+    try {
+        const response = await axios.post("http://127.0.0.1:8000/process", {
+            text: text,
+            phone: from
+        });
+
+        await sock.sendMessage(from, {
+            text: response.data.reply
+        });
+
+    } catch (error) {
+        console.log("Backend error:", error.message);
+
+        await sock.sendMessage(from, {
+            text: "⚠️ Server error. Please try again."
+        });
+    }
+});
 
 }
 

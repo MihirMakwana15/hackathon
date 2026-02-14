@@ -1,54 +1,36 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-
+import ollama
 app = FastAPI()
 
 sessions = {}
 
-class RequestModel(BaseModel):
-    text: str
-    phone: str
+@app.post("/chat")
+async def chat(data: dict):
+    user_id = data["user_id"]
+    message = data["message"]
 
-@app.post("/process")
-async def process(data: RequestModel):
-    user = data.phone
-    message = data.text.lower()
+    if user_id not in sessions:
+        sessions[user_id] = {"history": []}
 
-    # Initialize user session
-    if user not in sessions:
-        sessions[user] = {
-            "step": "greet",
-            "booking": {}
-        }
+    sessions[user_id]["history"].append(f"User: {message}")
 
-    session = sessions[user]
+    prompt = f"""
+    You are a smart appointment booking chatbot.
 
-    # STEP 1: Greeting
-    if session["step"] == "greet":
-        session["step"] = "ask_service"
-        return {"reply": "Hi 👋 Welcome! What service would you like to book?"}
+    Conversation:
+    {sessions[user_id]["history"]}
 
-    # STEP 2: Ask Service
-    if session["step"] == "ask_service":
-        session["booking"]["service"] = message
-        session["step"] = "ask_date"
-        return {"reply": "Great 👍 What date would you like?"}
+    If booking info is missing, ask only for the missing info.
+    If complete, confirm booking clearly.
+    """
 
-    # STEP 3: Ask Date
-    if session["step"] == "ask_date":
-        session["booking"]["date"] = message
-        session["step"] = "ask_time"
-        return {"reply": "Perfect. What time?"}
+    response = ollama.chat(
+        model="llama3",
+        messages=[{"role": "user", "content": prompt}]
+    )
 
-    # STEP 4: Ask Time
-    if session["step"] == "ask_time":
-        session["booking"]["time"] = message
+    bot_reply = response["message"]["content"]
 
-        booking = session["booking"]
+    sessions[user_id]["history"].append(f"Bot: {bot_reply}")
 
-        # Reset session after booking
-        sessions.pop(user)
-
-        return {
-            "reply": f"✅ Booking Confirmed!\n\nService: {booking['service']}\nDate: {booking['date']}\nTime: {booking['time']}"
-        }
+    return {"response": bot_reply}
