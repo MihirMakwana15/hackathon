@@ -1,34 +1,54 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from database import init_db
-from llm_service import extract_booking
-from booking_service import save_booking, get_bookings
-
 app = FastAPI()
-init_db()
 
-class Message(BaseModel):
+sessions = {}
+
+class RequestModel(BaseModel):
     text: str
     phone: str
 
 @app.post("/process")
-def process(msg: Message):
+async def process(data: RequestModel):
+    user = data.phone
+    message = data.text.lower()
 
-    booking = extract_booking(msg.text)
+    # Initialize user session
+    if user not in sessions:
+        sessions[user] = {
+            "step": "greet",
+            "booking": {}
+        }
 
-    if booking:
-        save_booking(booking, msg.phone)
-        return {"reply": f"""
-✅ Booking Confirmed!
+    session = sessions[user]
 
-📅 {booking['date']}
-⏰ {booking['time']}
-💼 {booking['service']}
-"""}
+    # STEP 1: Greeting
+    if session["step"] == "greet":
+        session["step"] = "ask_service"
+        return {"reply": "Hi 👋 Welcome! What service would you like to book?"}
 
-    return {"reply": "Please send booking details."}
+    # STEP 2: Ask Service
+    if session["step"] == "ask_service":
+        session["booking"]["service"] = message
+        session["step"] = "ask_date"
+        return {"reply": "Great 👍 What date would you like?"}
 
-@app.get("/bookings")
-def list_bookings():
-    return get_bookings()
+    # STEP 3: Ask Date
+    if session["step"] == "ask_date":
+        session["booking"]["date"] = message
+        session["step"] = "ask_time"
+        return {"reply": "Perfect. What time?"}
+
+    # STEP 4: Ask Time
+    if session["step"] == "ask_time":
+        session["booking"]["time"] = message
+
+        booking = session["booking"]
+
+        # Reset session after booking
+        sessions.pop(user)
+
+        return {
+            "reply": f"✅ Booking Confirmed!\n\nService: {booking['service']}\nDate: {booking['date']}\nTime: {booking['time']}"
+        }

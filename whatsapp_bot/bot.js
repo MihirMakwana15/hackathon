@@ -1,32 +1,59 @@
-const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys")
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys")
+const { Boom } = require("@hapi/boom")
+const qrcode = require("qrcode-terminal")
 const axios = require("axios")
 
 async function startBot() {
 
     const { state, saveCreds } = await useMultiFileAuthState("auth")
-    const sock = makeWASocket({ auth: state })
+
+    const sock = makeWASocket({
+        auth: state
+    })
 
     sock.ev.on("creds.update", saveCreds)
 
-    sock.ev.on("messages.upsert", async ({ messages }) => {
+    sock.ev.on("connection.update", (update) => {
+        const { connection, lastDisconnect, qr } = update
 
-        const msg = messages[0]
-        if (!msg.message) return
+        // 🔹 Show QR manually
+        if (qr) {
+            console.log("📱 Scan this QR code:\n")
+            qrcode.generate(qr, { small: true })
+        }
 
-        const text = msg.message.conversation
-        const from = msg.key.remoteJid
+        if (connection === "close") {
+            const shouldReconnect =
+                (lastDisconnect?.error instanceof Boom)?.output?.statusCode !== DisconnectReason.loggedOut
 
-        if (!text) return
+            if (shouldReconnect) {
+                console.log("Reconnecting...")
+                startBot()
+            } else {
+                console.log("Logged out.")
+            }
 
-        const response = await axios.post("http://localhost:8000/process", {
-            text: text,
-            phone: from
-        })
-
-        await sock.sendMessage(from, {
-            text: response.data.reply
-        })
+        } else if (connection === "open") {
+            console.log("✅ WhatsApp Bot Connected")
+        }
     })
+
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+    const msg = messages[0]
+    if (!msg.message) return
+
+    const text = msg.message.conversation || msg.message.extendedTextMessage?.text
+    const from = msg.key.remoteJid
+
+    if (!text) return
+
+    console.log("Received message:", text)
+
+    await sock.sendMessage(from, {
+        text: "Bot received: " + text
+    })
+})
+
 }
 
 startBot()

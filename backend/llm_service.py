@@ -28,7 +28,15 @@ Message:
         }
     )
 
-    output = res.json()["response"]
+    data = res.json()
+
+    print("LLM RAW RESPONSE:", data)  # Debug print
+
+    if "response" not in data:
+        raise Exception(f"LLM Error: {data}")
+
+    output = data["response"]
+
 
     try:
         return json.loads(output)
