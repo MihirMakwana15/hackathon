@@ -2,51 +2,52 @@ import requests
 import json
 
 def extract_booking(text):
+    """
+    Sends conversation to Ollama and returns chatbot reply.
+    """
 
     prompt = f"""
-You are a professional appointment booking assistant.
+You are a professional and friendly appointment booking assistant.
 
 Conversation so far:
 {text}
 
-Your task:
-1. Understand the user's intent.
-2. Identify service type.
-3. Ask for missing required information.
-4. If all information is collected, confirm the booking.
+Your behavior rules:
 
-Required information for booking:
-- Full Name
-- Phone number
-- Address
-- Date
-- Time
-- Service type
-
-Respond naturally like a real assistant.
+1. If this is the first message from the user, greet politely and ask how you can help.
+2. Understand the user's intent.
+3. If booking:
+   - Identify service type.
+   - Ask for missing details step-by-step.
+4. Required booking info:
+   - Full Name
+   - Phone number
+   - Address
+   - Date
+   - Time
+   - Service type
+5. If all info collected, confirm booking clearly.
+6. Be natural and conversational.
+7. Use proper line breaks.
+8. Do NOT return JSON.
 """
 
-
-    res = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "llama3",
-            "prompt": prompt,
-            "stream": False
-        }
-    )
-
-    data = res.json()
-
-    print("LLM RAW RESPONSE:", data)  # Debug print
-
-    if "response" not in data:
-        raise Exception(f"LLM Error: {data}")
-
-    output = data["response"]
-
-
     try:
-        return json.loads(output)
-    except:
-        return None
+        res = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama3",
+                "prompt": prompt,
+                "stream": False
+            }
+        )
+
+        data = res.json()
+
+        if "response" not in data:
+            return "⚠ AI model error."
+
+        return data["response"].strip()
+
+    except Exception as e:
+        return f"⚠ LLM connection error: {str(e)}"

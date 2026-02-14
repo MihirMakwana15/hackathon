@@ -4,3 +4,4 @@ requests
 faster-whisper
 pydantic
 sqlite-utils
+ollama
